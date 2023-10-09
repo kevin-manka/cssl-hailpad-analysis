@@ -1,7 +1,7 @@
 import open3d as o3d
 import numpy as np
 
-mesh = o3d.io.read_triangle_mesh("hailpad.stl")
+mesh = o3d.io.read_triangle_mesh("hailpad_normalized.stl")
 
 print("Computing normal and rendering it.")
 mesh.compute_vertex_normals()
