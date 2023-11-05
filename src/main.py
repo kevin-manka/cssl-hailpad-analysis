@@ -9,6 +9,7 @@ def main():
     # mesh = o3d.io.read_triangle_mesh("src/meshes/hailpad.stl")
 
     # # Render mesh
+    # # mesh.compute_vertex_normals()
     # # o3d.visualization.draw_geometries(
     # #     [mesh], window_name = "Hailpad Mesh", width = 750, height = 750)
 
@@ -85,12 +86,26 @@ def main():
     # Load image
     img = cv2.imread("src/images/dmap.png", cv2.IMREAD_GRAYSCALE)
 
-    # Apply Gaussian blur
-    blurred = cv2.GaussianBlur(img, (7, 7), 0)
+    # Apply Gaussian blur (preprocessing to improve efficiency/accuracy)
+    blurred = cv2.GaussianBlur(img, (5, 5), 0)
 
-    # Apply threshold
-    threshold = cv2.threshold(blurred, 0, 255,
-                              cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+    # Apply threshold (old)
+    # threshold = cv2.threshold(blurred, 0, 255,
+    #                           cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+
+    # CLAHE preprocessing (increase contrast; clipLimit is contrast limit for equalization) (TESTING)
+    # clahe = cv2.createCLAHE(clipLimit = 2.0, tileGridSize = (8, 8))
+    # cl1 = clahe.apply(blurred)
+
+    block_size = 15 # Pixel neighbourhood size
+    c = 1 # Lower c corresponds to more lenient thresholding
+
+    # Apply adaptive threshold
+    threshold = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, block_size, c)
+    
+    # TESTING
+    cv2.imshow("threshold (adaptive)", threshold)
+    cv2.waitKey(0)
     
     # Apply the component analysis function
     analysis = cv2.connectedComponentsWithStats(threshold, 4, cv2.CV_32S)
@@ -100,11 +115,21 @@ def main():
     # Initialize a new image to store all the output components
     output = np.zeros(img.shape, dtype = "uint8")
 
+    # Set the area, width, and height bounds for component filtering
+    min_area = 140
+    max_area = 400
+    max_width = 30
+    max_height = 30
+
     # Loop through each component
     for i in range(1, totalLabels):
+        # Get the area, width, and height of the i-th connected component
         area = values[i, cv2.CC_STAT_AREA]
+        width = values[i, cv2.CC_STAT_WIDTH]
+        height = values[i, cv2.CC_STAT_HEIGHT]
 
-        if (area > 140) and (area < 400):
+        # Filter the connected components to the specified bounds
+        if area > min_area and area < max_area and width < max_width and height < max_height:
             componentMask = (label_ids == i).astype("uint8") * 255
             output = cv2.bitwise_or(output, componentMask)
 
