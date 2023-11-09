@@ -13,7 +13,8 @@ def main():
     # # o3d.visualization.draw_geometries(
     # #     [mesh], window_name = "Hailpad Mesh", width = 750, height = 750)
 
-    # # Create point cloud from mesh
+    # # Create point cloud from mesh (set an arbitrary seed for reproducibility)
+    # np.random.seed(0)
     # pcd = mesh.sample_points_uniformly(number_of_points = 1000000)
 
     # # Fit minimal bounding box
@@ -38,7 +39,9 @@ def main():
     # #                                   zoom = 0.7,
     # #                                   front = [0, 0, 1],
     # #                                   lookat = [0, 0, 0],
-    # #                                   up = [0, 1, 0])
+    # #                                   up = [0, 1, 0],
+    # #                                   window_name = "Hailpad Point Cloud",
+    # #                                   width = 750, height = 750)
     
     # # Convert to numpy array
     # pts = np.asarray(pcd.points)
@@ -81,6 +84,7 @@ def main():
     # # Save as regular image (convert from float to byte)
     # dmap *= 255.0
     # dmap = dmap.astype(np.uint8)
+    # dmap = cv2.flip(dmap, 1)
     # cv2.imwrite("src/images/dmap.png", dmap)
 
     # Load image
