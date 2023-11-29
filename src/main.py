@@ -101,18 +101,43 @@ def main():
     # clahe = cv2.createCLAHE(clipLimit = 2.0, tileGridSize = (8, 8))
     # cl1 = clahe.apply(blurred)
 
-    block_size = 15 # Pixel neighbourhood size
-    c = 1 # Lower c corresponds to more lenient thresholding
+   # xx block_size = 15 # Pixel neighbourhood size
+   # xx c = 1 # Lower c corresponds to more lenient thresholding
+    
+    # Threshold using blackhat transform
+    filter_size = (50,50)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, filter_size)
+
+    blackhat_img = cv2.morphologyEx(img, cv2.MORPH_BLACKHAT, kernel)
+
+    cv2.imshow("blackhat", blackhat_img)
+    cv2.waitKey(0)
+
+    # Filter out shallow artifacts by depth (e.g., small or non-hail indents)
+    depth_threshold = 20
+    filtered_blackhat = np.where(blackhat_img < depth_threshold, 0, blackhat_img)
+
+    cv2.imshow("blackhat (filtered)", filtered_blackhat)
+    cv2.waitKey(0)
 
     # Apply adaptive threshold
-    threshold = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, block_size, c)
+    # xx threshold = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, block_size, c)
     
     # TESTING
-    cv2.imshow("threshold (adaptive)", threshold)
+    # xx cv2.imshow("threshold (adaptive)", threshold)
     cv2.waitKey(0)
-    
+
+    # Apply binary threshold
+    _, binary_img = cv2.threshold(filtered_blackhat, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # Apply erosion to remove the edges of the hailpad
+    eroded_binary = cv2.erode(binary_img, cv2.getStructuringElement(cv2.MORPH_RECT, (5,5)), iterations = 1)
+
+    cv2.imshow("eroded", eroded_binary)
+    cv2.waitKey(0)
+
     # Apply the component analysis function
-    analysis = cv2.connectedComponentsWithStats(threshold, 4, cv2.CV_32S)
+    analysis = cv2.connectedComponentsWithStats(eroded_binary, 4, cv2.CV_32S)
 
     (totalLabels, label_ids, values, centroid) = analysis
 
@@ -121,9 +146,9 @@ def main():
 
     # Set the area, width, and height bounds for component filtering
     min_area = 140
-    max_area = 400
-    max_width = 30
-    max_height = 30
+    max_area = 700
+    max_width = 200
+    max_height = 200
 
     # Loop through each component
     for i in range(1, totalLabels):
@@ -133,7 +158,7 @@ def main():
         height = values[i, cv2.CC_STAT_HEIGHT]
 
         # Filter the connected components to the specified bounds
-        if area > min_area and area < max_area and width < max_width and height < max_height:
+        if area > min_area:
             componentMask = (label_ids == i).astype("uint8") * 255
             output = cv2.bitwise_or(output, componentMask)
 
