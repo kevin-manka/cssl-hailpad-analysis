@@ -106,9 +106,9 @@ def main():
     
     # Threshold using blackhat transform
     filter_size = (50,50)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, filter_size)
+    blackhat_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, filter_size)
 
-    blackhat_img = cv2.morphologyEx(img, cv2.MORPH_BLACKHAT, kernel)
+    blackhat_img = cv2.morphologyEx(img, cv2.MORPH_BLACKHAT, blackhat_kernel)
 
     cv2.imshow("blackhat", blackhat_img)
     cv2.waitKey(0)
@@ -130,14 +130,113 @@ def main():
     # Apply binary threshold
     _, binary_img = cv2.threshold(filtered_blackhat, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    # Apply erosion to remove the edges of the hailpad
-    eroded_binary = cv2.erode(binary_img, cv2.getStructuringElement(cv2.MORPH_RECT, (5,5)), iterations = 1)
-
-    cv2.imshow("eroded", eroded_binary)
+    # Subtract difference between dilation and erosion transforms to remove noise and hailpad edges
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)) 
+    binary_img = cv2.morphologyEx(binary_img,  
+                            cv2.MORPH_OPEN, 
+                            kernel, 
+                            iterations=1) 
+    cv2.imshow("noise removal (dilation - erosion)", binary_img)
     cv2.waitKey(0)
 
-    # Apply the component analysis function
-    analysis = cv2.connectedComponentsWithStats(eroded_binary, 4, cv2.CV_32S)
+    sure_bg = cv2.dilate(binary_img, kernel, iterations=3) 
+    dist = cv2.distanceTransform(binary_img, cv2.DIST_L2, 5)
+    ret, sure_fg = cv2.threshold(dist, 0.4 * dist.max(), 255, cv2.THRESH_BINARY)
+    sure_fg = sure_fg.astype(np.uint8)
+    unknown = cv2.subtract(sure_bg, sure_fg)
+    
+    cv2.imshow("unknown area", unknown)
+    cv2.waitKey(0)
+
+    # Apply watershed algorithm
+    ret, markers = cv2.connectedComponents(sure_fg)
+    markers += 1
+    markers[unknown == 255] = 0
+    img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR) # Convert back to 3-channel BGR image for watershed
+    markers = cv2.watershed(img, markers)
+    img[markers == -1] = [255,0,0]
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.imshow(markers, cmap="tab20b") 
+    ax.axis('off')
+    plt.show()
+
+    # Get the unique labels from the markers
+    labels = np.unique(markers)
+
+    # Initialize a list to store the component statistics
+    component_stats = []
+
+    # Loop through each label to get the component statistics
+    for label in labels:
+        marker_binary = np.where(markers == label, 255, 0).astype('uint8')
+        num_labels, label_im, stats, centroid = cv2.connectedComponentsWithStats(marker_binary, 4, cv2.CV_32S)
+        component_stats.append((num_labels, label_im, stats, centroid))
+    
+    # Set the area, width, and height bounds for component filtering
+    min_area = 140
+    max_area = 700
+    max_width = 200
+    max_height = 200
+
+    # Filter components
+    for component in component_stats:
+        num_labels, label_im, stats, centroid = component
+
+        for i in range(1, num_labels):
+            area = stats[i, cv2.CC_STAT_AREA]
+            
+            if area < min_area:
+                label_im[label_im == i] = 0
+
+        component = (num_labels, label_im, stats, centroid)
+    
+    # Display components
+    for i in range(1, len(component_stats)):
+        fig, ax = plt.subplots(figsize=(6, 6))
+        ax.imshow(component_stats[i][1], cmap="tab20b")
+        ax.axis('off')
+        plt.show()
+
+    exit()
+
+    # -------------------------------------------
+
+    # FOR CREATING CONTOUR OUTLINES
+    # labels = np.unique(markers) 
+  
+    # indents = [] 
+    # for label in labels[2:]:   
+    
+    # # Create a binary image in which only the area of the label is in the foreground  
+    # #and the rest of the image is in the background    
+    #     target = np.where(markers == label, 255, 0).astype(np.uint8) 
+        
+    # # Perform contour extraction on the created binary image 
+    #     contours, hierarchy = cv2.findContours( 
+    #         target, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE 
+    #     ) 
+    #     indents.append(contours[0]) 
+    
+    # # Draw the outline 
+    # img = cv2.drawContours(img, indents, -1, color=(0, 23, 223), thickness=2) 
+    # cv2.imshow("contours", img)
+    # cv2.waitKey(0)
+
+    # cv2.imshow("markers", markers)
+    # cv2.waitKey(0)
+    # exit()
+
+    # Apply erosion to remove the edges of the hailpad
+    # eroded_binary = cv2.erode(binary_img, cv2.getStructuringElement(cv2.MORPH_RECT, (5,5)), iterations = 1)
+
+    # cv2.imshow("eroded", eroded_binary)
+    # cv2.waitKey(0)
+
+    # # Apply the component analysis function
+    # analysis = cv2.connectedComponentsWithStats(eroded_binary, 4, cv2.CV_32S)
+
+    analysis = cv2.connectedComponentsWithStats(markers_binary, 4, cv2.CV_32S)
 
     (totalLabels, label_ids, values, centroid) = analysis
 
@@ -149,6 +248,9 @@ def main():
     max_area = 700
     max_width = 200
     max_height = 200
+
+    # Convert the output image to BGR for drawing colored center points
+    output_bgr = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
 
     # Loop through each component
     for i in range(1, totalLabels):
@@ -162,7 +264,15 @@ def main():
             componentMask = (label_ids == i).astype("uint8") * 255
             output = cv2.bitwise_or(output, componentMask)
 
+            # Centroid labelling
+            center_x = int(centroid[i][0])
+            center_y = int(centroid[i][1])
+            cv2.circle(output_bgr, (center_x, center_y), 3, (0, 0, 255), -1)
+
     cv2.imshow("Filtered Components", output)
+    cv2.waitKey(0)
+
+    cv2.imshow("Filtered Components Centroids", output_bgr)
     cv2.waitKey(0)
 
 if __name__ == '__main__':
