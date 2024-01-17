@@ -180,100 +180,46 @@ def main():
     max_height = 200
 
     # Filter components
+    filtered_component_stats = []
     for component in component_stats:
         num_labels, label_im, stats, centroid = component
 
-        for i in range(1, num_labels):
-            area = stats[i, cv2.CC_STAT_AREA]
-            
-            if area < min_area:
-                label_im[label_im == i] = 0
+        area = stats[1, cv2.CC_STAT_AREA] # Index 1 represents the identified component per label
+                        
+        if area > min_area:
+            filtered_component_stats.append(component)
+        else:
+            print("Filtered out component with the following area: {}".format(area))
 
-        component = (num_labels, label_im, stats, centroid)
+    print("Number of components: {}".format(len(component_stats)))
+    print("Number of filtered components: {}".format(len(filtered_component_stats)))
+    
+    # Output the statistics of each component, including width, height, area, and depth
+    for component in filtered_component_stats:
+        num_labels, label_im, stats, centroid = component
+
+        area = stats[1, cv2.CC_STAT_AREA]
+        width = stats[1, cv2.CC_STAT_WIDTH]
+        height = stats[1, cv2.CC_STAT_HEIGHT]
+
+        # Calculate the depth value at the centroid of the component
+        y = int(centroid[1][0])
+        x = int(centroid[1][1])
+        cent_depth = img[y, x][0] / 255.0 # Normalize depth value between 0-1
+
+        # Calculate the average and largest depth values of the component
+        mask = label_im == 1
+        avg_depth = img[mask].mean() / 255.0
+        max_depth = img[mask].max() / 255.0
+
+        print("Width: {}    Height: {}  Area: {}    Centroid: {}    Depth at Centroid: {}   Average Depth: {}   Largest Depth: {}".format(width, height, area, centroid[1], cent_depth, avg_depth, max_depth))
     
     # Display components
-    for i in range(1, len(component_stats)):
-        fig, ax = plt.subplots(figsize=(6, 6))
-        ax.imshow(component_stats[i][1], cmap="tab20b")
-        ax.axis('off')
-        plt.show()
-
-    exit()
-
-    # -------------------------------------------
-
-    # FOR CREATING CONTOUR OUTLINES
-    # labels = np.unique(markers) 
-  
-    # indents = [] 
-    # for label in labels[2:]:   
-    
-    # # Create a binary image in which only the area of the label is in the foreground  
-    # #and the rest of the image is in the background    
-    #     target = np.where(markers == label, 255, 0).astype(np.uint8) 
-        
-    # # Perform contour extraction on the created binary image 
-    #     contours, hierarchy = cv2.findContours( 
-    #         target, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE 
-    #     ) 
-    #     indents.append(contours[0]) 
-    
-    # # Draw the outline 
-    # img = cv2.drawContours(img, indents, -1, color=(0, 23, 223), thickness=2) 
-    # cv2.imshow("contours", img)
-    # cv2.waitKey(0)
-
-    # cv2.imshow("markers", markers)
-    # cv2.waitKey(0)
-    # exit()
-
-    # Apply erosion to remove the edges of the hailpad
-    # eroded_binary = cv2.erode(binary_img, cv2.getStructuringElement(cv2.MORPH_RECT, (5,5)), iterations = 1)
-
-    # cv2.imshow("eroded", eroded_binary)
-    # cv2.waitKey(0)
-
-    # # Apply the component analysis function
-    # analysis = cv2.connectedComponentsWithStats(eroded_binary, 4, cv2.CV_32S)
-
-    analysis = cv2.connectedComponentsWithStats(markers_binary, 4, cv2.CV_32S)
-
-    (totalLabels, label_ids, values, centroid) = analysis
-
-    # Initialize a new image to store all the output components
-    output = np.zeros(img.shape, dtype = "uint8")
-
-    # Set the area, width, and height bounds for component filtering
-    min_area = 140
-    max_area = 700
-    max_width = 200
-    max_height = 200
-
-    # Convert the output image to BGR for drawing colored center points
-    output_bgr = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
-
-    # Loop through each component
-    for i in range(1, totalLabels):
-        # Get the area, width, and height of the i-th connected component
-        area = values[i, cv2.CC_STAT_AREA]
-        width = values[i, cv2.CC_STAT_WIDTH]
-        height = values[i, cv2.CC_STAT_HEIGHT]
-
-        # Filter the connected components to the specified bounds
-        if area > min_area:
-            componentMask = (label_ids == i).astype("uint8") * 255
-            output = cv2.bitwise_or(output, componentMask)
-
-            # Centroid labelling
-            center_x = int(centroid[i][0])
-            center_y = int(centroid[i][1])
-            cv2.circle(output_bgr, (center_x, center_y), 3, (0, 0, 255), -1)
-
-    cv2.imshow("Filtered Components", output)
-    cv2.waitKey(0)
-
-    cv2.imshow("Filtered Components Centroids", output_bgr)
-    cv2.waitKey(0)
+    # for i in range(1, len(component_stats)):
+    #     fig, ax = plt.subplots(figsize=(6, 6))
+    #     ax.imshow(component_stats[i][1], cmap="tab20b")
+    #     ax.axis('off')
+    #     plt.show()
 
 if __name__ == '__main__':
     main()
