@@ -18,7 +18,7 @@ def analyze_dmap(img):
     blackhat_img = cv2.morphologyEx(img, cv2.MORPH_BLACKHAT, blackhat_kernel)
 
     # Increase blackhat contrast to improve detection of finer details
-    accentuated = cv2.convertScaleAbs(blackhat_img, alpha=2, beta=0)
+    accentuated = cv2.convertScaleAbs(blackhat_img, alpha=8, beta=0)
 
     # FOR TESTING PURPOSES (TODO: REMOVE)
     cv2.imshow("blackhat", blackhat_img)
@@ -29,9 +29,10 @@ def analyze_dmap(img):
     cv2.waitKey(0)
 
     # Filter out shallow artifacts by depth (e.g., small or non-hail indents)
-    depth_threshold = 0
-    filtered_blackhat = np.where(
-        blackhat_img < depth_threshold, 0, blackhat_img)
+    # depth_threshold = 0
+    # filtered_blackhat = np.where(
+    #     blackhat_img < depth_threshold, 0, blackhat_img)
+    filtered_blackhat = accentuated # TODO: Remove
 
     # FOR TESTING PURPOSES (TODO: REMOVE)
     cv2.imshow("blackhat (filtered)", filtered_blackhat)
@@ -95,18 +96,33 @@ def analyze_dmap(img):
     # Initialize a list to store the component statistics
     component_stats = []
 
+    count = 1
+
     # Loop through each label to get the component statistics
     for label in labels:
         marker_binary = np.where(markers == label, 255, 0).astype('uint8')
         num_labels, label_im, stats, centroid = cv2.connectedComponentsWithStats(
             marker_binary, 4, cv2.CV_32S)
-        component_stats.append((num_labels, label_im, stats, centroid))
+        # component_stats.append((num_labels, label_im, stats, centroid))
+        
+        # Find the coordinates of the points in the component
+        y, x = np.where(label_im == 1)
+        points = np.column_stack((x, y))
+
+        # Fit an ellipse to the component
+        if points.shape[0] > 5:
+            ellipse = cv2.fitEllipse(points)
+            component_stats.append((num_labels, label_im, stats, centroid, ellipse))
+            print(f"Ellipse {count} fitted:" + str(ellipse))
+            count += 1
+        else:
+            component_stats.append((num_labels, label_im, stats, centroid))
 
     indents = []
 
     # Output the statistics of each component
     for component in component_stats:
-        num_labels, label_im, stats, centroid = component
+        num_labels, label_im, stats, centroid, ellipse = component
 
         area = stats[1, cv2.CC_STAT_AREA]
         width = stats[1, cv2.CC_STAT_WIDTH]
@@ -114,7 +130,7 @@ def analyze_dmap(img):
 
         # Calculate major and minor axes by determining the longest and shortest distances
 
-        # TODO: Remove (write new algo to calculate major and minor axes)
+        # TODO: Remove (use ellipse fitting algo to calculate major and minor axes)
         # major_axis = 0
         # minor_axis = 0
 
@@ -138,8 +154,8 @@ def analyze_dmap(img):
 
         indents.append({
             "area": area,
-            "major_axis": major_axis,
-            "minor_axis": minor_axis,
+            "major_axis": ellipse[1][0] if ellipse is not None else None,
+            "minor_axis": ellipse[1][1] if ellipse is not None else None,
             "centroid": {
                 "y": y,
                 "x": x
@@ -148,5 +164,14 @@ def analyze_dmap(img):
             "avg_depth": avg_depth,
             "max_depth": max_depth
         })
+
+        # Draw ellipses on the image (FOR TESTING PURPOSES -- TODO: REMOVE)
+        # If an ellipse was fitted, draw it on the image
+        if ellipse is not None:
+            cv2.ellipse(img, ellipse, (0, 255, 0), 2)
+
+    # display the image with ellipses
+    cv2.imshow("ellipses", img)
+    cv2.waitKey(0)
 
     return indents
