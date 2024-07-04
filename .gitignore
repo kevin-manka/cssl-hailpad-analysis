@@ -1,3 +1,5 @@
 __pycache__
-images
 output.json
+overlapping_ellipse_detection
+pics
+src/edge_detection

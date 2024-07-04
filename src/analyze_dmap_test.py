@@ -66,15 +66,15 @@ def analyze_dmap_test(img):
     cv2.waitKey(0)
 
     # Apply contrast limited adaptive histogram equalization to even out values
-    clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
-    clahe_img = clahe.apply(blackhat_img)
+    # clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
+    # clahe_img = clahe.apply(blackhat_img)
 
     # FOR TESTING PURPOSES (TODO: REMOVE)
-    cv2.imshow("clahe", clahe_img)
-    cv2.waitKey(0)
+    # cv2.imshow("clahe", clahe_img)
+    # cv2.waitKey(0)
 
     # Apply adaptive thresholding
-    adaptive_binary = cv2.adaptiveThreshold(clahe_img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 21, -4)
+    adaptive_binary = cv2.adaptiveThreshold(blackhat_img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 21, -4)
 
     # FOR TESTING PURPOSES (TODO: REMOVE)
     cv2.imshow("adaptive binary", adaptive_binary)
@@ -89,15 +89,12 @@ def analyze_dmap_test(img):
 
     # Apply morphological operations to remove noise and hailpad edges
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    # binary_img = cv2.morphologyEx(
-    #     adaptive_binary_filtered, cv2.MORPH_OPEN, kernel, iterations=2)
-
-    binary_img = cv2.erode(adaptive_binary_filtered, kernel, iterations=2)
+    binary_img = cv2.morphologyEx(
+        adaptive_binary_filtered, cv2.MORPH_OPEN, kernel, iterations=2)
     
     # FOR TESTING PURPOSES (TODO: REMOVE)
     cv2.imshow("binary img", binary_img)
     cv2.waitKey(0)
-
 
     # Watershed data vis (TODO: Remove)
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 8))
@@ -130,6 +127,24 @@ def analyze_dmap_test(img):
 
     plt.show()
 
+    # ret, markers = cv2.connectedComponents(sure_fg)
+    # markers += 1
+    # markers[unknown == 255] = 0
+    # fig, ax = plt.subplots(figsize=(6, 6))
+    # ax.imshow(markers, cmap='tab20b')
+    # ax.axis('off')
+    # ax.set_title("Markers")
+    # plt.show()
+
+    # # Apply watershed algorithm
+    # ret, markers = cv2.connectedComponents(binary_img)
+    # markers += 1
+    # # markers[unknown == 255] = 0
+    # # Convert back to 3-channel BGR image for watershed
+    # img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    # markers = cv2.watershed(img, markers)
+    # img[markers == -1] = [255, 0, 0]
+
     # Apply watershed algorithm
     ret, markers = cv2.connectedComponents(binary_img)
     markers += 1
@@ -137,7 +152,11 @@ def analyze_dmap_test(img):
     # Convert back to 3-channel BGR image for watershed
     img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     markers = cv2.watershed(img, markers)
-    img[markers == -1] = [255, 0, 0]
+    # img[markers == -1] = [255, 0, 0]
+
+    # FOR TESTING PURPOSES (TODO: REMOVE)
+    cv2.imshow("watershed", img)
+    cv2.waitKey(0)
 
     # Get the unique labels from the markers
     labels = np.unique(markers)
